@@ -1,0 +1,17 @@
+{
+  "name": "survival-game",
+  "version": "1.0.0",
+  "description": "Um jogo de sobrevivência onde você defende uma ponte contra hordas de inimigos",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.162.0"
+  },
+  "devDependencies": {
+    "vite": "^5.1.4"
+  }
+} 
