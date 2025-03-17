@@ -10,7 +10,7 @@ export class PowerUp {
         switch(type) {
             case 'gatling':
                 this.duration = 120000; // 2 minutos
-                this.fireRate = 30; // 30ms entre tiros
+                this.fireRate = 50; // Ajustado para 50ms entre tiros (menos intenso que 30ms)
                 this.damage = 10;
                 this.projectileCount = 3; // Número de projéteis por tiro
                 this.spreadAngle = 0.1; // Ângulo de dispersão dos tiros
@@ -34,9 +34,9 @@ export class PowerUp {
                 break;
             case 'grenade':
                 this.duration = 120000; // 2 minutos
-                this.fireRate = 800; // 0.8 segundos
+                this.fireRate = 10; // Ajustado para 10ms (era 800ms)
                 this.damage = 20;
-                this.areaSize = 1;
+                this.areaSize = 1; // 1 quadrado ao redor do alvo
                 this.color = 0x00ff00;
                 this.displayName = 'GRANADA';
                 break;
@@ -97,7 +97,7 @@ export class PowerUp {
         
         // Define a posição inicial
         this.mesh.position.copy(position);
-        this.mesh.position.y += 0.5;
+        this.mesh.position.y = 0.5; // Altura fixa mais próxima do chão
         
         this.scene.add(this.mesh);
         
@@ -123,13 +123,15 @@ export class PowerUp {
     collect() {
         if (!this.isActive) return null;
         
+        console.log('PowerUp sendo coletado:', this.type);
         const powerUpInfo = {
             type: this.type,
             duration: this.duration,
             fireRate: this.fireRate,
             damage: this.damage,
             areaSize: this.areaSize,
-            squadSize: this.squadSize
+            squadSize: this.squadSize,
+            color: this.color
         };
         
         this.destroy();
@@ -158,7 +160,18 @@ export class PowerUp {
     }
     
     checkCollision(position) {
-        const distance = this.mesh.position.distanceTo(position);
-        return distance < 0.5;
+        if (!this.isActive) return false;
+        
+        // Verifica se o projétil está na mesma altura aproximada
+        const heightDiff = Math.abs(this.mesh.position.y - position.y);
+        if (heightDiff > 0.5) return false;
+        
+        // Verifica a distância no plano XZ
+        const xzDistance = new THREE.Vector2(
+            this.mesh.position.x - position.x,
+            this.mesh.position.z - position.z
+        ).length();
+        
+        return xzDistance < 0.8; // Aumentado um pouco o raio de colisão
     }
 } 

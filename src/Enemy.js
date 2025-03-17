@@ -84,8 +84,9 @@ export class Enemy {
         const powerUp = new PowerUp(this.scene, randomType, this.mesh.position.clone());
         
         // Adiciona o powerup à lista de powerups do jogo
-        if (this.game && this.game.powerUps) {
-            this.game.powerUps.push(powerUp);
+        if (this.scene.userData.game) {
+            this.scene.userData.game.powerUps.push(powerUp);
+            console.log('PowerUp dropado:', randomType);
         }
     }
     

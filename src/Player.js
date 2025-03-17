@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Projectile } from './Projectile';
+import { AudioManager } from './AudioManager';
 
 export class Player {
     constructor(scene, onGameOver) {
@@ -10,11 +11,15 @@ export class Player {
         this.position = { x: 0, y: 0.5, z: 8 }; // Posição inicial na ponte
         this.onGameOver = onGameOver;
         
+        // Usa o AudioManager global
+        this.audioManager = AudioManager.getInstance();
+        
         // Lista de projéteis ativos
         this.projectiles = [];
         this.shootingInterval = null;
         this.canShoot = true;
-        this.shootDelay = 50; // Reduzido de 500 para 50ms
+        this.shootDelay = 50;
+        this.lastShotTime = 0; // Para controle de taxa de tiro
         
         // Sistema de powerups
         this.activePowerUps = [];
@@ -71,24 +76,60 @@ export class Player {
     }
     
     startShooting() {
+        // Garante que o intervalo anterior seja limpo
         if (this.shootingInterval) {
             clearInterval(this.shootingInterval);
+            this.shootingInterval = null;
         }
         
+        console.log(`Iniciando sistema de tiro com delay: ${this.shootDelay}ms`);
+        
+        // Configura um novo intervalo de tiro
         this.shootingInterval = setInterval(() => {
             this.shoot();
         }, this.shootDelay);
+        
+        // Dispara imediatamente o primeiro tiro
+        this.shoot();
     }
     
     shoot() {
+        // Verifica se o jogador pode atirar e se o jogo está em andamento
         if (!this.canShoot) return;
+        
+        // Verifica se o jogo está pausado ou terminado
+        const game = this.scene.userData.game;
+        if (game && (game.isPaused || game.isGameOver)) return;
+        
+        const now = performance.now();
+        if (now - this.lastShotTime < this.shootDelay) return;
+        
+        this.lastShotTime = now;
+        
+        // Toca o som do tiro
+        this.audioManager.playShot();
         
         // Atira com o jogador principal
         if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
             // Dispara múltiplos projéteis em leque para a gatling
             for (let i = 0; i < this.currentPowerUp.projectileCount; i++) {
                 const spread = (i - (this.currentPowerUp.projectileCount - 1) / 2) * this.currentPowerUp.spreadAngle;
-                this.createProjectile(this.mesh.position.clone(), spread);
+                const projectile = new Projectile(
+                    this.scene,
+                    this.mesh.position.clone(),
+                    this.currentPowerUp.damage,
+                    spread,
+                    this.currentPowerUp.type,
+                    0 // Gatling não tem dano em área
+                );
+                this.projectiles.push(projectile);
+                
+                // Verifica se o projétil foi realmente adicionado à cena
+                if (!projectile.mesh || !projectile.mesh.parent) {
+                    console.error('Erro ao criar projétil para gatling gun!');
+                    // Tenta criar usando o método alternativo
+                    this.createProjectile(this.mesh.position.clone(), spread);
+                }
             }
         } else {
             this.createProjectile(this.mesh.position.clone(), 0);
@@ -99,7 +140,22 @@ export class Player {
             if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
                 for (let i = 0; i < this.currentPowerUp.projectileCount; i++) {
                     const spread = (i - (this.currentPowerUp.projectileCount - 1) / 2) * this.currentPowerUp.spreadAngle;
-                    this.createProjectile(member.position.clone(), spread);
+                    const projectile = new Projectile(
+                        this.scene,
+                        member.position.clone(),
+                        this.currentPowerUp.damage,
+                        spread,
+                        this.currentPowerUp.type,
+                        0 // Gatling não tem dano em área
+                    );
+                    this.projectiles.push(projectile);
+                    
+                    // Verificação adicional
+                    if (!projectile.mesh || !projectile.mesh.parent) {
+                        console.error('Erro ao criar projétil para squad com gatling gun!');
+                        // Tenta criar usando o método alternativo
+                        this.createProjectile(member.position.clone(), spread);
+                    }
                 }
             } else {
                 this.createProjectile(member.position.clone(), 0);
@@ -114,16 +170,33 @@ export class Player {
     }
     
     createProjectile(position, spread = 0) {
+        // Se tiver um powerup ativo que tenha área de dano
+        let powerUpType = null;
+        let areaSize = 0;
+        
+        if (this.currentPowerUp) {
+            powerUpType = this.currentPowerUp.type;
+            
+            if (this.currentPowerUp.areaSize) {
+                areaSize = this.currentPowerUp.areaSize;
+            }
+        }
+        
         const projectile = new Projectile(
             this.scene,
             position,
             this.damage,
-            spread
+            spread,
+            powerUpType,
+            areaSize
         );
         this.projectiles.push(projectile);
     }
     
     addPowerUp(powerUpInfo) {
+        // Toca o som do powerup
+        this.audioManager.playPowerup();
+        
         const powerUp = {
             ...powerUpInfo,
             startTime: Date.now(),
@@ -139,12 +212,21 @@ export class Player {
         this.mesh.material.emissive.setHex(powerUpColor);
         this.mesh.material.emissiveIntensity = 0.3;
         
+        // Para o intervalo de tiro atual para evitar conflitos
+        if (this.shootingInterval) {
+            clearInterval(this.shootingInterval);
+            this.shootingInterval = null;
+        }
+        
         switch(powerUp.type) {
             case 'gatling':
             case 'ak47':
                 this.shootDelay = powerUp.fireRate;
                 this.damage = powerUp.damage;
-                this.startShooting();
+                // Reinicia o sistema de tiro com a nova taxa
+                setTimeout(() => {
+                    this.startShooting();
+                }, 100); // Pequeno delay para garantir que o intervalo anterior foi limpo
                 console.log(`PowerUp ativado: ${powerUp.type} - Dano: ${this.damage} - Taxa de tiro: ${this.shootDelay}ms`);
                 break;
             case 'bazooka':
@@ -152,7 +234,9 @@ export class Player {
                 this.shootDelay = powerUp.fireRate;
                 this.damage = powerUp.damage;
                 // A área de dano é tratada na classe Projectile
-                this.startShooting();
+                setTimeout(() => {
+                    this.startShooting();
+                }, 100);
                 console.log(`PowerUp ativado: ${powerUp.type} - Dano: ${this.damage} - Área: ${powerUp.areaSize}`);
                 break;
             case 'squad':
