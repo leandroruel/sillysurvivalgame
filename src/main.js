@@ -41,7 +41,7 @@ class Game {
         this.waveIntervalTime = 5000; // 5 segundos entre ondas
         this.difficultyIntervalTime = 120000; // 2 minutos para aumentar a dificuldade
         this.powerupEnemyIntervalTime = 8000; // 8 segundos para spawnar inimigo com powerup
-        this.bossIntervalTime = 480000; // 8 minutos para o primeiro boss
+        this.bossIntervalTime = 60000;
         
         // IDs dos intervalos (serão definidos em startWaveSystem)
         this.waveInterval = null;
@@ -193,7 +193,7 @@ class Game {
             if (!this.isPaused && !this.isGameOver) this.spawnPowerupEnemy();
         }, this.powerupEnemyIntervalTime);
         
-        // Spawna o boss a cada 8 minutos
+        // Spawna o boss a cada 3 minutos
         this.bossInterval = setInterval(() => {
             if (!this.isPaused && !this.isGameOver) this.spawnBoss();
         }, this.bossIntervalTime);
@@ -307,6 +307,33 @@ class Game {
                 enemy.destroy();
             }
         });
+        
+        // Verifica colisão do jogador com powerups
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+            if (this.powerUps[i].checkCollision(this.player.mesh.position)) {
+                const powerUpInfo = this.powerUps[i].collect();
+                
+                // Adiciona o powerup ao jogador
+                if (powerUpInfo) {
+                    // Log detalhado para powerups coletados
+                    console.log(`PowerUp coletado: ${powerUpInfo.type}`, powerUpInfo);
+                    
+                    // Log extra para AK-47
+                    if (powerUpInfo.type === 'ak47') {
+                        console.log('AK-47 coletada! Fire rate:', powerUpInfo.fireRate, 'ms, Dano:', powerUpInfo.damage);
+                    }
+                    
+                    this.player.addPowerUp(powerUpInfo);
+                    const scoreToAdd = 30;
+                    this.score += scoreToAdd;
+                    this.ui.updateScore(this.score);
+                    this.ui.showFloatingText(`+${scoreToAdd}`, this.player.mesh.position);
+                }
+                
+                // Remove o powerup da lista
+                this.powerUps.splice(i, 1);
+            }
+        }
     }
     
     // Método para aplicar dano em área aos inimigos próximos

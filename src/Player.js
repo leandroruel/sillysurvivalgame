@@ -82,7 +82,13 @@ export class Player {
             this.shootingInterval = null;
         }
         
-        console.log(`Iniciando sistema de tiro com delay: ${this.shootDelay}ms`);
+        // Garante que o shootDelay seja um valor válido
+        if (!this.shootDelay || this.shootDelay < 10) {
+            console.warn(`ShootDelay inválido (${this.shootDelay}ms), usando valor padrão de 50ms`);
+            this.shootDelay = 50;
+        }
+        
+        console.log(`Iniciando sistema de tiro com delay: ${this.shootDelay}ms, Power-up: ${this.currentPowerUp ? this.currentPowerUp.type : 'nenhum'}`);
         
         // Configura um novo intervalo de tiro
         this.shootingInterval = setInterval(() => {
@@ -109,38 +115,26 @@ export class Player {
         // Toca o som do tiro
         this.audioManager.playShot();
         
-        // Atira com o jogador principal
-        if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
-            // Dispara 3 projéteis em leque para a gatling
-            const numProjectiles = 3; // Hardcoded para garantir que sempre sejam criados 3 projéteis
-            for (let i = 0; i < numProjectiles; i++) {
-                const spread = (i - (numProjectiles - 1) / 2) * 0.1; // Ângulo fixo
-                
-                // Usa o método createProjectile para maior confiabilidade
-                this.createProjectile(this.mesh.position.clone(), spread);
-            }
-            console.log("Gatling gun disparou 3 projéteis");
-        } else {
-            this.createProjectile(this.mesh.position.clone(), 0);
-        }
+        // Determina o tipo de tiro com base no powerup atual
+        const currentWeaponType = this.currentPowerUp ? this.currentPowerUp.type : null;
         
-        // Atira com os membros do squad (apenas se tivermos o squad powerup ou qualquer powerup ativo)
+        // Log para identificar o tipo de arma atual em cada tiro
+        console.log(`Tiro atual: ${currentWeaponType || 'arma padrão'}, Delay: ${this.shootDelay}ms`);
+        
+        // Atira com o jogador principal
+        this.fireWeapon(this.mesh.position.clone(), currentWeaponType);
+        
+        // Atira com os membros do squad, se existirem
         if (this.squadMembers.length > 0) {
-            // Log para debug - verifica quantos membros estão atirando
-            console.log(`${this.squadMembers.length} membros do squad estão atirando`);
+            console.log(`${this.squadMembers.length} membros do squad estão atirando com ${currentWeaponType || 'arma padrão'}`);
             
-            this.squadMembers.forEach(member => {
-                if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
-                    // Dispara 3 projéteis em leque para a gatling
-                    const numProjectiles = 3; // Hardcoded para garantir que sempre sejam criados 3 projéteis
-                    for (let i = 0; i < numProjectiles; i++) {
-                        const spread = (i - (numProjectiles - 1) / 2) * 0.1; // Ângulo fixo
-                        
-                        // Usa o método createProjectile para maior confiabilidade
-                        this.createProjectile(member.position.clone(), spread);
-                    }
-                } else {
-                    this.createProjectile(member.position.clone(), 0);
+            this.squadMembers.forEach((member, index) => {
+                // Para debug: mostra a posição de cada membro ao atirar
+                console.log(`Membro ${index}: posição (${member.position.x.toFixed(2)}, ${member.position.y.toFixed(2)}, ${member.position.z.toFixed(2)})`);
+                
+                // Garante que a posição é válida antes de atirar
+                if (member && member.position) {
+                    this.fireWeapon(member.position.clone(), currentWeaponType);
                 }
             });
         }
@@ -152,28 +146,91 @@ export class Player {
         }, this.shootDelay);
     }
     
-    createProjectile(position, spread = 0) {
-        // Se tiver um powerup ativo que tenha área de dano
-        let powerUpType = null;
+    // Método para disparar uma arma com base no tipo de powerup
+    fireWeapon(position, weaponType) {
+        try {
+            // Log para debug do tipo de arma
+            console.log(`Disparando arma tipo: ${weaponType || 'padrão'} da posição (${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)})`);
+            
+            switch(weaponType) {
+                case 'gatling':
+                    // Dispara 3 projéteis em leque para a gatling
+                    const numProjectiles = 3;
+                    for (let i = 0; i < numProjectiles; i++) {
+                        const spread = (i - (numProjectiles - 1) / 2) * 0.1;
+                        this.createProjectile(position, spread, weaponType);
+                    }
+                    break;
+                    
+                case 'ak47':
+                    // Tratamento específico para AK-47
+                    console.log("Disparando AK-47");
+                    this.createProjectile(position, 0, 'ak47');
+                    break;
+                    
+                case 'bazooka':
+                    // Tratamento específico para Bazooka
+                    console.log("Disparando Bazooka");
+                    this.createProjectile(position, 0, 'bazooka');
+                    break;
+                    
+                case 'grenade':
+                    // Tratamento específico para Granada
+                    console.log("Disparando Granada");
+                    this.createProjectile(position, 0, 'grenade');
+                    break;
+                    
+                default:
+                    // Arma padrão dispara um único projétil
+                    this.createProjectile(position, 0, weaponType);
+                    break;
+            }
+        } catch (error) {
+            console.error('Erro ao disparar arma:', error);
+        }
+    }
+    
+    createProjectile(position, spread = 0, forcedPowerUpType = null) {
+        // Define o tipo de powerup a ser usado
+        let powerUpType = forcedPowerUpType || null;
         let areaSize = 0;
         
-        if (this.currentPowerUp) {
+        // Se não foi forçado um tipo específico, usa o powerup atual
+        if (!powerUpType && this.currentPowerUp) {
             powerUpType = this.currentPowerUp.type;
-            
-            if (this.currentPowerUp.areaSize) {
-                areaSize = this.currentPowerUp.areaSize;
-            }
         }
         
-        const projectile = new Projectile(
-            this.scene,
-            position,
-            this.damage,
-            spread,
-            powerUpType,
-            areaSize
-        );
-        this.projectiles.push(projectile);
+        // Define a área de dano com base no tipo de powerup
+        if (powerUpType === 'bazooka') {
+            areaSize = 2; // Garante que a bazooka sempre tenha área 2
+        } else if (powerUpType === 'grenade') {
+            areaSize = 1; // Garante que a granada sempre tenha área 1
+        } else if (this.currentPowerUp && this.currentPowerUp.areaSize) {
+            areaSize = this.currentPowerUp.areaSize;
+        }
+        
+        try {
+            // Clona a posição para evitar problemas de referência
+            const projectilePosition = new THREE.Vector3(position.x, position.y, position.z);
+            
+            // Log detalhado para debug
+            console.log(`Criando projétil: tipo=${powerUpType}, área=${areaSize}, dano=${this.damage}`);
+            
+            const projectile = new Projectile(
+                this.scene,
+                projectilePosition,
+                this.damage,
+                spread,
+                powerUpType,
+                areaSize
+            );
+            this.projectiles.push(projectile);
+            
+            // Log para debug
+            console.debug(`Projétil criado na posição ${projectilePosition.x.toFixed(2)}, ${projectilePosition.y.toFixed(2)}, ${projectilePosition.z.toFixed(2)} com powerup ${powerUpType || 'nenhum'}`);
+        } catch (error) {
+            console.error('Erro ao criar projétil:', error);
+        }
     }
     
     addPowerUp(powerUpInfo) {
@@ -183,17 +240,41 @@ export class Player {
         const powerUp = {
             ...powerUpInfo,
             startTime: Date.now(),
-            endTime: Date.now() + powerUpInfo.duration
+            endTime: Date.now() + powerUpInfo.duration,
+            timerId: null // Identificador para o temporizador de remoção
         };
         
-        this.activePowerUps.push(powerUp);
-        this.currentPowerUp = powerUp;
+        // Limpa qualquer temporizador ativo para este tipo de powerup
+        this.clearPowerUpTimer(powerUp.type);
         
-        // Atualiza a cor do jogador e dos membros do squad baseado no powerup
-        const powerUpColor = this.getPowerUpColor(powerUp.type);
-        this.mesh.material.color.setHex(powerUpColor);
-        this.mesh.material.emissive.setHex(powerUpColor);
-        this.mesh.material.emissiveIntensity = 0.3;
+        // Verifica se já existe um powerup do mesmo tipo
+        const existingPowerUpIndex = this.activePowerUps.findIndex(p => p.type === powerUp.type);
+        if (existingPowerUpIndex >= 0) {
+            // Atualiza o tempo de expiração do powerup existente
+            this.activePowerUps[existingPowerUpIndex].endTime = powerUp.endTime;
+            console.log(`PowerUp ${powerUp.type} renovado por mais ${powerUp.duration / 1000} segundos`);
+        } else {
+            // Adiciona o novo powerup à lista
+            this.activePowerUps.push(powerUp);
+        }
+        
+        // Atualiza o powerup atual (exceto se for squad, que deve ser combinado com outros)
+        if (powerUp.type !== 'squad') {
+            this.currentPowerUp = powerUp;
+            
+            // Atualiza a cor do jogador e dos membros do squad
+            const powerUpColor = this.getPowerUpColor(powerUp.type);
+            this.mesh.material.color.setHex(powerUpColor);
+            this.mesh.material.emissive.setHex(powerUpColor);
+            this.mesh.material.emissiveIntensity = 0.3;
+            
+            // Atualiza a cor dos membros do squad também
+            this.squadMembers.forEach(member => {
+                member.material.color.setHex(powerUpColor);
+                member.material.emissive.setHex(powerUpColor);
+                member.material.emissiveIntensity = 0.3;
+            });
+        }
         
         // Para o intervalo de tiro atual para evitar conflitos
         if (this.shootingInterval) {
@@ -209,33 +290,68 @@ export class Player {
                 case 'gatling':
                     this.shootDelay = powerUp.fireRate;
                     this.damage = powerUp.damage;
-                    console.log(`PowerUp Gatling ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Projéteis=${powerUp.projectileCount}`);
+                    console.log(`PowerUp Gatling ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}`);
                     this.startShooting();
                     break;
                 case 'ak47':
                     this.shootDelay = powerUp.fireRate;
                     this.damage = powerUp.damage;
                     console.log(`PowerUp AK-47 ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}`);
+                    // Força a atualização do tipo de powerup atual para AK-47
+                    this.currentPowerUp = powerUp;
                     this.startShooting();
                     break;
                 case 'bazooka':
+                    this.shootDelay = powerUp.fireRate;
+                    this.damage = powerUp.damage;
+                    console.log(`PowerUp Bazooka ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Área=${powerUp.areaSize}`);
+                    // Força a atualização do tipo de powerup atual para Bazooka
+                    this.currentPowerUp = powerUp;
+                    this.startShooting();
+                    break;
                 case 'grenade':
                     this.shootDelay = powerUp.fireRate;
                     this.damage = powerUp.damage;
-                    console.log(`PowerUp ${powerUp.type} ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Área=${powerUp.areaSize}`);
+                    console.log(`PowerUp Granada ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Área=${powerUp.areaSize}`);
+                    // Força a atualização do tipo de powerup atual para Granada
+                    this.currentPowerUp = powerUp;
                     this.startShooting();
                     break;
                 case 'squad':
-                    this.addSquadMembers(powerUp.squadSize);
-                    console.log(`PowerUp Squad ativado: ${powerUp.squadSize} membros`);
+                    // Adiciona o squad apenas se não existir já (para evitar duplicação)
+                    if (existingPowerUpIndex < 0) {
+                        this.addSquadMembers(powerUp.squadSize);
+                        console.log(`PowerUp Squad ativado: ${powerUp.squadSize} membros`);
+                    } else {
+                        console.log(`PowerUp Squad renovado: continuando com ${this.squadMembers.length} membros`);
+                    }
+                    // Reinicia o sistema de tiro para certificar-se que os membros do squad usem o power-up atual
+                    this.startShooting();
                     break;
             }
         }, 100);
         
         // Remove o powerup quando expirar
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
             this.removePowerUp(powerUp);
         }, powerUp.duration);
+        
+        // Armazena o ID do timer para poder cancelá-lo se necessário
+        if (existingPowerUpIndex >= 0) {
+            this.activePowerUps[existingPowerUpIndex].timerId = timerId;
+        } else {
+            powerUp.timerId = timerId;
+        }
+    }
+    
+    // Limpa o temporizador de um tipo específico de powerup
+    clearPowerUpTimer(type) {
+        const existingPowerUp = this.activePowerUps.find(p => p.type === type);
+        if (existingPowerUp && existingPowerUp.timerId) {
+            clearTimeout(existingPowerUp.timerId);
+            existingPowerUp.timerId = null;
+            console.log(`Timer do powerup ${type} cancelado para renovação`);
+        }
     }
     
     getPowerUpColor(type) {
@@ -258,7 +374,20 @@ export class Player {
     removePowerUp(powerUp) {
         const index = this.activePowerUps.indexOf(powerUp);
         if (index > -1) {
+            // Limpa o timer se existir
+            if (this.activePowerUps[index].timerId) {
+                clearTimeout(this.activePowerUps[index].timerId);
+            }
+            
             this.activePowerUps.splice(index, 1);
+            
+            // Verifica se ainda há um powerup de squad ativo
+            const hasSquadPowerUp = this.activePowerUps.some(p => p.type === 'squad');
+            
+            // Remove membros do squad apenas se não houver mais powerup de squad ativo
+            if (powerUp.type === 'squad' && !hasSquadPowerUp) {
+                this.removeSquadMembers();
+            }
             
             // Reseta as configurações padrão se não houver outros powerups ativos
             if (this.activePowerUps.length === 0) {
@@ -270,15 +399,37 @@ export class Player {
                 this.mesh.material.emissiveIntensity = 0;
                 this.startShooting();
             } else {
-                // Aplica o próximo powerup da lista
-                this.currentPowerUp = this.activePowerUps[this.activePowerUps.length - 1];
-                this.mesh.material.color.setHex(this.getPowerUpColor(this.currentPowerUp.type));
-                this.mesh.material.emissive.setHex(this.getPowerUpColor(this.currentPowerUp.type));
-            }
-            
-            // Remove membros do squad se for um powerup de squad
-            if (powerUp.type === 'squad') {
-                this.removeSquadMembers();
+                // Procura outro powerup de arma para aplicar
+                const weaponPowerUp = this.activePowerUps.find(p => 
+                    p.type === 'gatling' || p.type === 'ak47' || 
+                    p.type === 'bazooka' || p.type === 'grenade'
+                );
+                
+                if (weaponPowerUp) {
+                    this.currentPowerUp = weaponPowerUp;
+                    this.shootDelay = weaponPowerUp.fireRate;
+                    this.damage = weaponPowerUp.damage;
+                    
+                    const powerUpColor = this.getPowerUpColor(weaponPowerUp.type);
+                    this.mesh.material.color.setHex(powerUpColor);
+                    this.mesh.material.emissive.setHex(powerUpColor);
+                    
+                    // Atualiza os membros do squad também
+                    this.squadMembers.forEach(member => {
+                        member.material.color.setHex(powerUpColor);
+                        member.material.emissive.setHex(powerUpColor);
+                    });
+                    
+                    this.startShooting();
+                } else {
+                    // Aplica o próximo powerup da lista (provavelmente squad)
+                    this.currentPowerUp = this.activePowerUps[this.activePowerUps.length - 1];
+                    this.mesh.material.color.setHex(this.getPowerUpColor(this.currentPowerUp.type));
+                    this.mesh.material.emissive.setHex(this.getPowerUpColor(this.currentPowerUp.type));
+                    
+                    // Garante que o sistema de tiro continue funcionando
+                    this.startShooting();
+                }
             }
             
             console.log('PowerUp removido:', powerUp.type);
@@ -290,7 +441,9 @@ export class Player {
         this.removeSquadMembers();
         
         // Tamanho do círculo
-        const radius = 0.8; // Reduzido para ficarem mais juntos
+        const radius = 0.7; // Reduzido para ficarem mais juntos
+        
+        console.log(`Adicionando ${count} membros ao squad`);
         
         for (let i = 0; i < count; i++) {
             // Calcula posição em círculo ao redor do jogador
@@ -315,9 +468,24 @@ export class Player {
             );
             member.castShadow = true;
             
+            // Define propriedades importantes para o membro do squad
+            member.isSquadMember = true; // Flag para identificação
+            
             // Adiciona o membro à cena e à lista
             this.scene.add(member);
             this.squadMembers.push(member);
+            
+            console.log(`Membro ${i+1} adicionado na posição (${member.position.x.toFixed(2)}, ${member.position.y.toFixed(2)}, ${member.position.z.toFixed(2)})`);
+        }
+        
+        // Aplica a cor do powerup atual aos membros do squad, se houver
+        if (this.currentPowerUp && this.currentPowerUp.type !== 'squad') {
+            const powerUpColor = this.getPowerUpColor(this.currentPowerUp.type);
+            this.squadMembers.forEach(member => {
+                member.material.color.setHex(powerUpColor);
+                member.material.emissive.setHex(powerUpColor);
+                member.material.emissiveIntensity = 0.3;
+            });
         }
         
         console.log(`Squad criado com ${count} membros em formação circular`);
@@ -336,19 +504,18 @@ export class Player {
         // Movimento do jogador
         if (this.keys.left && this.mesh.position.x > -2.5) {
             this.mesh.position.x -= this.moveSpeed;
-            
-            // Move os membros do squad junto
-            this.updateSquadPositions();
         }
         if (this.keys.right && this.mesh.position.x < 2.5) {
             this.mesh.position.x += this.moveSpeed;
-            
-            // Move os membros do squad junto
-            this.updateSquadPositions();
         }
         
         // Atualiza a posição
         this.position.x = this.mesh.position.x;
+        
+        // Sempre atualiza a posição dos membros do squad, independente do movimento
+        if (this.squadMembers.length > 0) {
+            this.updateSquadPositions();
+        }
         
         // Atualiza os projéteis
         this.projectiles = this.projectiles.filter(projectile => {
@@ -367,7 +534,7 @@ export class Player {
     updateSquadPositions() {
         if (this.squadMembers.length === 0) return;
         
-        const radius = 1.0;
+        const radius = 0.7; // Mesmo valor usado na criação
         
         this.squadMembers.forEach((member, index) => {
             const count = this.squadMembers.length;

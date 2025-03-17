@@ -15,7 +15,7 @@ export class Enemy {
         // Define as características baseadas no tipo
         switch(type) {
             case 'boss':
-                this.health = 200;
+                this.health = 800;
                 this.damage = 50;
                 this.speed = 0.02;
                 this.size = 1.2;

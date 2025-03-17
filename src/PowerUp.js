@@ -23,6 +23,8 @@ export class PowerUp {
                 this.damage = 15;
                 this.color = 0xff9900;
                 this.displayName = 'AK-47';
+                // Assegurando que o tipo está definido corretamente
+                this.type = 'ak47';
                 break;
             case 'bazooka':
                 this.duration = 120000; // 2 minutos
@@ -31,14 +33,18 @@ export class PowerUp {
                 this.areaSize = 2;
                 this.color = 0xff0000;
                 this.displayName = 'BAZOOKA';
+                // Assegurando que o tipo está definido corretamente
+                this.type = 'bazooka';
                 break;
             case 'grenade':
                 this.duration = 120000; // 2 minutos
-                this.fireRate = 10; // Ajustado para 10ms (era 800ms)
+                this.fireRate = 800; // 0.8 segundos (aumentado de 10ms para comportamento de granada)
                 this.damage = 20;
                 this.areaSize = 1; // 1 quadrado ao redor do alvo
                 this.color = 0x00ff00;
                 this.displayName = 'GRANADA';
+                // Assegurando que o tipo está definido corretamente
+                this.type = 'grenade';
                 break;
             case 'squad':
                 this.duration = 300000; // 5 minutos
