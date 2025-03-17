@@ -111,56 +111,39 @@ export class Player {
         
         // Atira com o jogador principal
         if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
-            // Dispara múltiplos projéteis em leque para a gatling
-            for (let i = 0; i < this.currentPowerUp.projectileCount; i++) {
-                const spread = (i - (this.currentPowerUp.projectileCount - 1) / 2) * this.currentPowerUp.spreadAngle;
-                const projectile = new Projectile(
-                    this.scene,
-                    this.mesh.position.clone(),
-                    this.currentPowerUp.damage,
-                    spread,
-                    this.currentPowerUp.type,
-                    0 // Gatling não tem dano em área
-                );
-                this.projectiles.push(projectile);
+            // Dispara 3 projéteis em leque para a gatling
+            const numProjectiles = 3; // Hardcoded para garantir que sempre sejam criados 3 projéteis
+            for (let i = 0; i < numProjectiles; i++) {
+                const spread = (i - (numProjectiles - 1) / 2) * 0.1; // Ângulo fixo
                 
-                // Verifica se o projétil foi realmente adicionado à cena
-                if (!projectile.mesh || !projectile.mesh.parent) {
-                    console.error('Erro ao criar projétil para gatling gun!');
-                    // Tenta criar usando o método alternativo
-                    this.createProjectile(this.mesh.position.clone(), spread);
-                }
+                // Usa o método createProjectile para maior confiabilidade
+                this.createProjectile(this.mesh.position.clone(), spread);
             }
+            console.log("Gatling gun disparou 3 projéteis");
         } else {
             this.createProjectile(this.mesh.position.clone(), 0);
         }
         
-        // Atira com os membros do squad
-        this.squadMembers.forEach(member => {
-            if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
-                for (let i = 0; i < this.currentPowerUp.projectileCount; i++) {
-                    const spread = (i - (this.currentPowerUp.projectileCount - 1) / 2) * this.currentPowerUp.spreadAngle;
-                    const projectile = new Projectile(
-                        this.scene,
-                        member.position.clone(),
-                        this.currentPowerUp.damage,
-                        spread,
-                        this.currentPowerUp.type,
-                        0 // Gatling não tem dano em área
-                    );
-                    this.projectiles.push(projectile);
-                    
-                    // Verificação adicional
-                    if (!projectile.mesh || !projectile.mesh.parent) {
-                        console.error('Erro ao criar projétil para squad com gatling gun!');
-                        // Tenta criar usando o método alternativo
+        // Atira com os membros do squad (apenas se tivermos o squad powerup ou qualquer powerup ativo)
+        if (this.squadMembers.length > 0) {
+            // Log para debug - verifica quantos membros estão atirando
+            console.log(`${this.squadMembers.length} membros do squad estão atirando`);
+            
+            this.squadMembers.forEach(member => {
+                if (this.currentPowerUp && this.currentPowerUp.type === 'gatling') {
+                    // Dispara 3 projéteis em leque para a gatling
+                    const numProjectiles = 3; // Hardcoded para garantir que sempre sejam criados 3 projéteis
+                    for (let i = 0; i < numProjectiles; i++) {
+                        const spread = (i - (numProjectiles - 1) / 2) * 0.1; // Ângulo fixo
+                        
+                        // Usa o método createProjectile para maior confiabilidade
                         this.createProjectile(member.position.clone(), spread);
                     }
+                } else {
+                    this.createProjectile(member.position.clone(), 0);
                 }
-            } else {
-                this.createProjectile(member.position.clone(), 0);
-            }
-        });
+            });
+        }
         
         // Cooldown do tiro
         this.canShoot = false;
@@ -218,32 +201,36 @@ export class Player {
             this.shootingInterval = null;
         }
         
-        switch(powerUp.type) {
-            case 'gatling':
-            case 'ak47':
-                this.shootDelay = powerUp.fireRate;
-                this.damage = powerUp.damage;
-                // Reinicia o sistema de tiro com a nova taxa
-                setTimeout(() => {
+        // Pequeno delay antes de iniciar o novo sistema de tiro
+        setTimeout(() => {
+            console.log(`Aplicando powerup: ${powerUp.type}`);
+            
+            switch(powerUp.type) {
+                case 'gatling':
+                    this.shootDelay = powerUp.fireRate;
+                    this.damage = powerUp.damage;
+                    console.log(`PowerUp Gatling ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Projéteis=${powerUp.projectileCount}`);
                     this.startShooting();
-                }, 100); // Pequeno delay para garantir que o intervalo anterior foi limpo
-                console.log(`PowerUp ativado: ${powerUp.type} - Dano: ${this.damage} - Taxa de tiro: ${this.shootDelay}ms`);
-                break;
-            case 'bazooka':
-            case 'grenade':
-                this.shootDelay = powerUp.fireRate;
-                this.damage = powerUp.damage;
-                // A área de dano é tratada na classe Projectile
-                setTimeout(() => {
+                    break;
+                case 'ak47':
+                    this.shootDelay = powerUp.fireRate;
+                    this.damage = powerUp.damage;
+                    console.log(`PowerUp AK-47 ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}`);
                     this.startShooting();
-                }, 100);
-                console.log(`PowerUp ativado: ${powerUp.type} - Dano: ${this.damage} - Área: ${powerUp.areaSize}`);
-                break;
-            case 'squad':
-                this.addSquadMembers(powerUp.squadSize);
-                console.log(`PowerUp ativado: ${powerUp.type} - Squad size: ${powerUp.squadSize}`);
-                break;
-        }
+                    break;
+                case 'bazooka':
+                case 'grenade':
+                    this.shootDelay = powerUp.fireRate;
+                    this.damage = powerUp.damage;
+                    console.log(`PowerUp ${powerUp.type} ativado: Delay=${this.shootDelay}ms, Dano=${this.damage}, Área=${powerUp.areaSize}`);
+                    this.startShooting();
+                    break;
+                case 'squad':
+                    this.addSquadMembers(powerUp.squadSize);
+                    console.log(`PowerUp Squad ativado: ${powerUp.squadSize} membros`);
+                    break;
+            }
+        }, 100);
         
         // Remove o powerup quando expirar
         setTimeout(() => {
@@ -299,26 +286,41 @@ export class Player {
     }
     
     addSquadMembers(count) {
+        // Primeiro, remova quaisquer membros existentes
+        this.removeSquadMembers();
+        
+        // Tamanho do círculo
+        const radius = 0.8; // Reduzido para ficarem mais juntos
+        
         for (let i = 0; i < count; i++) {
-            const offset = (i + 1) * 0.6 * (i % 2 === 0 ? 1 : -1);
-            const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
+            // Calcula posição em círculo ao redor do jogador
+            const angle = (i / count) * Math.PI * 2; // Distribui igualmente em círculo
+            const offsetX = Math.sin(angle) * radius;
+            const offsetZ = Math.cos(angle) * radius;
+            
+            // Cria o modelo para o membro do squad - usando cilindros para parecer com a imagem
+            const geometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
             const material = new THREE.MeshPhongMaterial({
-                color: this.getPowerUpColor('squad'),
-                emissive: this.getPowerUpColor('squad'),
-                emissiveIntensity: 0.3
+                color: 0x0066ff, // Azul mais vibrante, similar à imagem
+                emissive: 0x0044aa,
+                emissiveIntensity: 0.5
             });
             const member = new THREE.Mesh(geometry, material);
             
+            // Posiciona o membro no círculo ao redor do jogador
             member.position.set(
-                this.mesh.position.x + offset,
+                this.mesh.position.x + offsetX,
                 this.mesh.position.y,
-                this.mesh.position.z
+                this.mesh.position.z + offsetZ
             );
             member.castShadow = true;
             
+            // Adiciona o membro à cena e à lista
             this.scene.add(member);
             this.squadMembers.push(member);
         }
+        
+        console.log(`Squad criado com ${count} membros em formação circular`);
     }
     
     removeSquadMembers() {
@@ -336,19 +338,13 @@ export class Player {
             this.mesh.position.x -= this.moveSpeed;
             
             // Move os membros do squad junto
-            this.squadMembers.forEach((member, index) => {
-                const offset = (index + 1) * 0.6 * (index % 2 === 0 ? 1 : -1);
-                member.position.x = this.mesh.position.x + offset;
-            });
+            this.updateSquadPositions();
         }
         if (this.keys.right && this.mesh.position.x < 2.5) {
             this.mesh.position.x += this.moveSpeed;
             
             // Move os membros do squad junto
-            this.squadMembers.forEach((member, index) => {
-                const offset = (index + 1) * 0.6 * (index % 2 === 0 ? 1 : -1);
-                member.position.x = this.mesh.position.x + offset;
-            });
+            this.updateSquadPositions();
         }
         
         // Atualiza a posição
@@ -364,6 +360,23 @@ export class Player {
         const now = Date.now();
         this.activePowerUps = this.activePowerUps.filter(powerUp => {
             return now < powerUp.endTime;
+        });
+    }
+    
+    // Método para atualizar a posição dos membros do squad em formação circular
+    updateSquadPositions() {
+        if (this.squadMembers.length === 0) return;
+        
+        const radius = 1.0;
+        
+        this.squadMembers.forEach((member, index) => {
+            const count = this.squadMembers.length;
+            const angle = (index / count) * Math.PI * 2;
+            const offsetX = Math.sin(angle) * radius;
+            const offsetZ = Math.cos(angle) * radius;
+            
+            member.position.x = this.mesh.position.x + offsetX;
+            member.position.z = this.mesh.position.z + offsetZ;
         });
     }
     

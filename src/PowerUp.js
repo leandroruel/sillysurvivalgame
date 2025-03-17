@@ -10,7 +10,7 @@ export class PowerUp {
         switch(type) {
             case 'gatling':
                 this.duration = 120000; // 2 minutos
-                this.fireRate = 50; // Ajustado para 50ms entre tiros (menos intenso que 30ms)
+                this.fireRate = 50; // 50ms entre tiros
                 this.damage = 10;
                 this.projectileCount = 3; // Número de projéteis por tiro
                 this.spreadAngle = 0.1; // Ângulo de dispersão dos tiros
@@ -19,7 +19,7 @@ export class PowerUp {
                 break;
             case 'ak47':
                 this.duration = 240000; // 4 minutos
-                this.fireRate = 100; // 0.1 segundos
+                this.fireRate = 40; // 0.04 segundos (reduzido de 100ms)
                 this.damage = 15;
                 this.color = 0xff9900;
                 this.displayName = 'AK-47';
@@ -42,8 +42,8 @@ export class PowerUp {
                 break;
             case 'squad':
                 this.duration = 300000; // 5 minutos
-                this.squadSize = 5;
-                this.color = 0x0000ff;
+                this.squadSize = 8; // Aumentando para 8 soldados como na imagem
+                this.color = 0x0066ff; // Cor azul como os soldados
                 this.displayName = 'SQUAD';
                 break;
         }

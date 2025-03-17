@@ -40,7 +40,7 @@ class Game {
         // Configuração dos intervalos (em milissegundos)
         this.waveIntervalTime = 5000; // 5 segundos entre ondas
         this.difficultyIntervalTime = 120000; // 2 minutos para aumentar a dificuldade
-        this.powerupEnemyIntervalTime = 60000; // 1 minuto para spawnar inimigo com powerup
+        this.powerupEnemyIntervalTime = 8000; // 8 segundos para spawnar inimigo com powerup
         this.bossIntervalTime = 480000; // 8 minutos para o primeiro boss
         
         // IDs dos intervalos (serão definidos em startWaveSystem)
@@ -188,7 +188,7 @@ class Game {
             }
         }, this.difficultyIntervalTime);
         
-        // Spawna um inimigo com powerup a cada 1 minuto
+        // Spawna um inimigo com powerup a cada 8 segundos
         this.powerupEnemyInterval = setInterval(() => {
             if (!this.isPaused && !this.isGameOver) this.spawnPowerupEnemy();
         }, this.powerupEnemyIntervalTime);
