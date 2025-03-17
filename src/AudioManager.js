@@ -143,4 +143,17 @@ export class AudioManager {
         
         console.log('Todos os sons foram parados');
     }
+    
+    setVolume(volume) {
+        if (!this.loaded) return;
+        
+        // Ajusta o volume para todos os sons no pool
+        Object.keys(this.soundPool).forEach(type => {
+            this.soundPool[type].forEach(item => {
+                item.sound.setVolume(volume);
+            });
+        });
+        
+        console.log(`Volume ajustado para: ${volume * 100}%`);
+    }
 } 

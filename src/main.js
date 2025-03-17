@@ -15,6 +15,9 @@ class Game {
         this.audioManager = AudioManager.getInstance();
         this.camera.add(this.audioManager.getListener());
         
+        // Expõe o jogo globalmente para acesso do painel de configurações
+        window.game = this;
+        
         // Adiciona referência do jogo e da câmera à cena
         this.scene.userData.game = this;
         this.scene.camera = this.camera;
@@ -70,6 +73,9 @@ class Game {
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !this.isGameOver) {
                 this.togglePause();
+            } else if (e.key === 'c' || e.key === 'C') {
+                // Acessa as configurações (já implementado na UI)
+                // Nada a fazer aqui, pois a UI já trata desse evento
             }
         });
         

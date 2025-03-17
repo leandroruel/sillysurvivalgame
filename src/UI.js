@@ -1,8 +1,53 @@
 export class GameUI {
     constructor() {
+        // Adiciona estilos personalizados para o slider
+        this.addCustomStyles();
+        
         this.createGameUI();
         this.createGameOverUI();
         this.createPauseUI();
+        this.createSettingsUI();
+        
+        // Event listener para abrir as configurações com a tecla C
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'c' || e.key === 'C') {
+                this.toggleSettings();
+            }
+        });
+    }
+
+    addCustomStyles() {
+        // Cria um elemento de estilo
+        const style = document.createElement('style');
+        style.textContent = `
+            input[type=range] {
+                -webkit-appearance: none;
+                width: 100%;
+                height: 10px;
+                border-radius: 5px;
+                background: #444;
+                outline: none;
+            }
+            
+            input[type=range]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: #4CAF50;
+                cursor: pointer;
+            }
+            
+            input[type=range]::-moz-range-thumb {
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: #4CAF50;
+                cursor: pointer;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     createGameUI() {
@@ -43,6 +88,7 @@ export class GameUI {
         this.healthBarContainer.style.border = '2px solid white';
         this.healthBarContainer.style.borderRadius = '10px';
         this.healthBarContainer.style.overflow = 'hidden';
+        this.healthBarContainer.style.marginBottom = '10px';
         
         this.healthBar = document.createElement('div');
         this.healthBar.style.width = '100%';
@@ -52,6 +98,18 @@ export class GameUI {
         
         this.healthBarContainer.appendChild(this.healthBar);
         this.gameUI.appendChild(this.healthBarContainer);
+        
+        // Ícone de configurações
+        this.settingsButton = document.createElement('div');
+        this.settingsButton.textContent = '⚙️ Configurações (C)';
+        this.settingsButton.style.cursor = 'pointer';
+        this.settingsButton.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        this.settingsButton.style.padding = '5px 10px';
+        this.settingsButton.style.borderRadius = '5px';
+        this.settingsButton.style.display = 'inline-block';
+        this.settingsButton.addEventListener('click', () => this.toggleSettings());
+        
+        this.gameUI.appendChild(this.settingsButton);
         
         document.body.appendChild(this.gameUI);
     }
@@ -124,6 +182,107 @@ export class GameUI {
         this.pauseUI.appendChild(instruction);
         
         document.body.appendChild(this.pauseUI);
+    }
+
+    createSettingsUI() {
+        // Container das configurações
+        this.settingsUI = document.createElement('div');
+        this.settingsUI.style.position = 'fixed';
+        this.settingsUI.style.top = '50%';
+        this.settingsUI.style.left = '50%';
+        this.settingsUI.style.transform = 'translate(-50%, -50%)';
+        this.settingsUI.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        this.settingsUI.style.color = 'white';
+        this.settingsUI.style.padding = '20px';
+        this.settingsUI.style.borderRadius = '10px';
+        this.settingsUI.style.textAlign = 'center';
+        this.settingsUI.style.display = 'none';
+        this.settingsUI.style.zIndex = '1000';
+        this.settingsUI.style.minWidth = '300px';
+        
+        // Título das configurações
+        const settingsTitle = document.createElement('h2');
+        settingsTitle.textContent = 'Configurações';
+        settingsTitle.style.marginBottom = '20px';
+        this.settingsUI.appendChild(settingsTitle);
+        
+        // Controle de volume dos efeitos sonoros
+        const soundVolumeContainer = document.createElement('div');
+        soundVolumeContainer.style.marginBottom = '20px';
+        soundVolumeContainer.style.textAlign = 'left';
+        
+        const soundVolumeLabel = document.createElement('label');
+        soundVolumeLabel.textContent = 'Volume de efeitos sonoros: ';
+        soundVolumeLabel.setAttribute('for', 'sound-volume');
+        soundVolumeContainer.appendChild(soundVolumeLabel);
+        
+        const soundVolumeValue = document.createElement('span');
+        soundVolumeValue.id = 'sound-volume-value';
+        soundVolumeValue.style.marginLeft = '10px';
+        
+        // Recupera o volume atual (se existir) e garante que seja um número válido
+        let currentVolume = 50; // Valor padrão
+        const savedVolume = localStorage.getItem('soundVolume');
+        if (savedVolume !== null && !isNaN(parseInt(savedVolume, 10))) {
+            currentVolume = parseInt(savedVolume, 10);
+        }
+        
+        // Atualiza o texto exibido para refletir o valor atual
+        soundVolumeValue.textContent = `${currentVolume}%`;
+        
+        const soundVolumeSlider = document.createElement('input');
+        soundVolumeSlider.type = 'range';
+        soundVolumeSlider.id = 'sound-volume';
+        soundVolumeSlider.min = '0';
+        soundVolumeSlider.max = '100';
+        soundVolumeSlider.value = String(currentVolume); // Converte explicitamente para string
+        soundVolumeSlider.style.width = '100%';
+        soundVolumeSlider.style.margin = '10px 0';
+        
+        soundVolumeSlider.addEventListener('input', (e) => {
+            const volume = e.target.value;
+            soundVolumeValue.textContent = `${volume}%`;
+            this.updateVolume(volume / 100);
+        });
+        
+        soundVolumeContainer.appendChild(document.createElement('br'));
+        soundVolumeContainer.appendChild(soundVolumeSlider);
+        soundVolumeContainer.appendChild(soundVolumeValue);
+        
+        this.settingsUI.appendChild(soundVolumeContainer);
+        
+        // Botão de fechar
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Fechar';
+        closeButton.style.padding = '10px 20px';
+        closeButton.style.fontSize = '16px';
+        closeButton.style.cursor = 'pointer';
+        closeButton.style.backgroundColor = '#4CAF50';
+        closeButton.style.border = 'none';
+        closeButton.style.color = 'white';
+        closeButton.style.borderRadius = '5px';
+        closeButton.onclick = () => this.toggleSettings(false);
+        this.settingsUI.appendChild(closeButton);
+        
+        document.body.appendChild(this.settingsUI);
+        
+        // Inicializa o volume com o valor armazenado
+        this.updateVolume(currentVolume / 100);
+    }
+
+    updateVolume(volume) {
+        // Salva o volume no localStorage
+        localStorage.setItem('soundVolume', volume * 100);
+        
+        // Atualiza o volume no AudioManager
+        if (window.game && window.game.audioManager) {
+            window.game.audioManager.setVolume(volume);
+        }
+    }
+
+    toggleSettings(show) {
+        const isVisible = this.settingsUI.style.display === 'block';
+        this.settingsUI.style.display = show !== undefined ? (show ? 'block' : 'none') : (isVisible ? 'none' : 'block');
     }
 
     updateGameUI(gameTime, score, playerHealth, powerUpInfo = null) {
