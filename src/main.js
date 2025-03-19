@@ -9,7 +9,10 @@ class Game {
     constructor() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: false, // Desativa antialiasing para melhor performance
+            powerPreference: "high-performance" // Prioriza performance
+        });
         
         // Inicializa o sistema de áudio
         this.audioManager = AudioManager.getInstance();
@@ -24,8 +27,8 @@ class Game {
         
         // Configuração inicial
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.shadowMap.enabled = true;
+        this.renderer.setPixelRatio(1); // Força pixel ratio para 1 para melhor performance
+        this.renderer.shadowMap.enabled = false; // Desativa sombras para melhor performance
         this.scene.background = new THREE.Color(0x87CEEB); // Céu azul
         
         document.body.appendChild(this.renderer.domElement);
@@ -40,13 +43,31 @@ class Game {
         // Configuração dos intervalos (em milissegundos)
         this.waveIntervalTime = 5000; // 5 segundos entre ondas
         this.difficultyIntervalTime = 120000; // 2 minutos para aumentar a dificuldade
-        this.powerupEnemyIntervalTime = 8000; // 8 segundos para spawnar inimigo com powerup
-        this.bossIntervalTime = 60000;
+        
+        // Intervalos de spawn para diferentes tipos de powerups
+        this.powerupSpawnRates = {
+            gatling: 30000,   // 30 segundos (aumentado de 25)
+            ak47: 35000,      // 35 segundos (aumentado de 30)
+            bazooka: 40000,   // 40 segundos (aumentado de 35)
+            grenade: 45000,   // 45 segundos (aumentado de 40)
+            squad: 360000     // 6 minutos (maior que o tempo de despawn de 5 minutos)
+        };
+        
+        // Contadores de tempo desde o último spawn para cada tipo
+        this.lastPowerupSpawnTime = {
+            gatling: 0,
+            ak47: 0,
+            bazooka: 0,
+            grenade: 0,
+            squad: 0
+        };
+        
+        this.bossIntervalTime = 180000; // 3 minutos para o primeiro boss
         
         // IDs dos intervalos (serão definidos em startWaveSystem)
         this.waveInterval = null;
         this.difficultyInterval = null;
-        this.powerupEnemyInterval = null;
+        this.powerupSpawnInterval = null;
         this.bossInterval = null;
         
         this.score = 0;
@@ -58,13 +79,8 @@ class Game {
         this.camera.lookAt(0, 0, 0);
         
         // Adiciona luz
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Aumenta a luz ambiente para compensar a falta de sombras
         this.scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 5, 5);
-        directionalLight.castShadow = true;
-        this.scene.add(directionalLight);
         
         // Inicializa a UI
         this.ui = new GameUI();
@@ -103,7 +119,7 @@ class Game {
             // Para todos os intervalos
             if (this.waveInterval) clearInterval(this.waveInterval);
             if (this.difficultyInterval) clearInterval(this.difficultyInterval);
-            if (this.powerupEnemyInterval) clearInterval(this.powerupEnemyInterval);
+            if (this.powerupSpawnInterval) clearInterval(this.powerupSpawnInterval);
             if (this.bossInterval) clearInterval(this.bossInterval);
         } else {
             // Reinicia os intervalos
@@ -126,7 +142,7 @@ class Game {
         // Para todos os intervalos
         if (this.waveInterval) clearInterval(this.waveInterval);
         if (this.difficultyInterval) clearInterval(this.difficultyInterval);
-        if (this.powerupEnemyInterval) clearInterval(this.powerupEnemyInterval);
+        if (this.powerupSpawnInterval) clearInterval(this.powerupSpawnInterval);
         if (this.bossInterval) clearInterval(this.bossInterval);
         
         // Para o jogador
@@ -154,9 +170,9 @@ class Game {
     init() {
         // Cria a ponte (plataforma do jogo)
         const bridgeGeometry = new THREE.BoxGeometry(6, 0.2, 20);
-        const bridgeMaterial = new THREE.MeshPhongMaterial({ color: 0x808080 });
+        const bridgeMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 }); // Troca PhongMaterial por BasicMaterial
         this.bridge = new THREE.Mesh(bridgeGeometry, bridgeMaterial);
-        this.bridge.receiveShadow = true;
+        this.bridge.receiveShadow = false; // Desativa recebimento de sombras
         this.scene.add(this.bridge);
         
         // Adiciona o jogador
@@ -164,13 +180,19 @@ class Game {
         
         // Inicia o sistema de ondas
         this.startWaveSystem();
+        
+        // Adiciona luz
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Aumenta a luz ambiente para compensar a falta de sombras
+        this.scene.add(ambientLight);
+        
+        // Remove a luz direcional para melhor performance
     }
     
     startWaveSystem() {
         // Limpa intervalos anteriores se existirem
         if (this.waveInterval) clearInterval(this.waveInterval);
         if (this.difficultyInterval) clearInterval(this.difficultyInterval);
-        if (this.powerupEnemyInterval) clearInterval(this.powerupEnemyInterval);
+        if (this.powerupSpawnInterval) clearInterval(this.powerupSpawnInterval);
         if (this.bossInterval) clearInterval(this.bossInterval);
         
         // Cria uma nova onda a cada intervalo
@@ -188,10 +210,12 @@ class Game {
             }
         }, this.difficultyIntervalTime);
         
-        // Spawna um inimigo com powerup a cada 8 segundos
-        this.powerupEnemyInterval = setInterval(() => {
-            if (!this.isPaused && !this.isGameOver) this.spawnPowerupEnemy();
-        }, this.powerupEnemyIntervalTime);
+        // Verifica a cada segundo qual powerup deve ser spawnado
+        this.powerupSpawnInterval = setInterval(() => {
+            if (!this.isPaused && !this.isGameOver) {
+                this.checkPowerupSpawn();
+            }
+        }, 1000);
         
         // Spawna o boss a cada 3 minutos
         this.bossInterval = setInterval(() => {
@@ -219,10 +243,18 @@ class Game {
         spawnBatch();
     }
     
-    spawnPowerupEnemy() {
+    spawnPowerupEnemy(forcedType = null) {
         if (!this.isGameOver) {
-            console.log('Inimigo com powerup spawnou!');
-            this.enemies.push(new Enemy(this.scene, 'powerup', (msg) => this.gameOver(msg)));
+            const type = forcedType || 'random';
+            console.log(`Inimigo com powerup spawnou! Tipo: ${type}`);
+            const enemy = new Enemy(this.scene, 'powerup', (msg) => this.gameOver(msg));
+            
+            // Se um tipo específico foi forçado, define-o no inimigo
+            if (forcedType) {
+                enemy.forcedPowerupType = forcedType;
+            }
+            
+            this.enemies.push(enemy);
         }
     }
     
@@ -243,7 +275,8 @@ class Game {
             this.gameTime,
             this.score,
             this.player ? this.player.health : 0,
-            this.player ? this.player.currentPowerUp : null
+            this.player ? this.player.currentPowerUp : null,
+            this.player ? this.player.getActivePowerUps() : []
         );
     }
     
@@ -419,6 +452,36 @@ class Game {
             this.update();
         }
         this.renderer.render(this.scene, this.camera);
+    }
+    
+    // Verifica qual powerup deve ser spawnado baseado nas frequências
+    checkPowerupSpawn() {
+        const now = Date.now();
+        let powerupToSpawn = null;
+        let readyTimes = [];
+        
+        // Verifica para cada tipo de powerup se está na hora de spawnar
+        for (const type in this.powerupSpawnRates) {
+            const timeSinceLastSpawn = now - this.lastPowerupSpawnTime[type];
+            const spawnRate = this.powerupSpawnRates[type];
+            
+            // Se passou tempo suficiente desde o último spawn deste tipo
+            if (timeSinceLastSpawn >= spawnRate) {
+                readyTimes.push({ type, timeSinceLastSpawn });
+            }
+        }
+        
+        // Se há algum powerup pronto para spawnar, escolhe o que está esperando há mais tempo
+        if (readyTimes.length > 0) {
+            readyTimes.sort((a, b) => b.timeSinceLastSpawn - a.timeSinceLastSpawn);
+            powerupToSpawn = readyTimes[0].type;
+            
+            // Atualiza o tempo do último spawn para este tipo
+            this.lastPowerupSpawnTime[powerupToSpawn] = now;
+            
+            // Spawna o powerup
+            this.spawnPowerupEnemy(powerupToSpawn);
+        }
     }
 }
 

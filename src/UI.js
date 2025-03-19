@@ -3,6 +3,11 @@ export class GameUI {
         // Adiciona estilos personalizados para o slider
         this.addCustomStyles();
         
+        // Inicializa variáveis para cálculo de FPS
+        this.frames = 0;
+        this.lastTime = performance.now();
+        this.fps = 0;
+        
         this.createGameUI();
         this.createGameOverUI();
         this.createPauseUI();
@@ -61,6 +66,17 @@ export class GameUI {
         this.gameUI.style.fontSize = '18px';
         this.gameUI.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
         
+        // Contador de FPS
+        this.fpsCounter = document.createElement('div');
+        this.fpsCounter.style.position = 'fixed';
+        this.fpsCounter.style.top = '20px';
+        this.fpsCounter.style.left = '20px';
+        this.fpsCounter.style.color = 'white';
+        this.fpsCounter.style.fontFamily = 'Arial, sans-serif';
+        this.fpsCounter.style.fontSize = '18px';
+        this.fpsCounter.style.textShadow = '2px 2px 2px rgba(0,0,0,0.5)';
+        document.body.appendChild(this.fpsCounter);
+        
         // Cronômetro
         this.timerUI = document.createElement('div');
         this.timerUI.style.marginBottom = '10px';
@@ -71,13 +87,14 @@ export class GameUI {
         this.scoreUI.style.marginBottom = '10px';
         this.gameUI.appendChild(this.scoreUI);
         
-        // PowerUp Ativo
+        // PowerUps Ativos
         this.powerUpUI = document.createElement('div');
         this.powerUpUI.style.marginBottom = '10px';
-        this.powerUpUI.style.padding = '5px 10px';
+        this.powerUpUI.style.padding = '10px';
         this.powerUpUI.style.backgroundColor = 'rgba(0,0,0,0.5)';
         this.powerUpUI.style.borderRadius = '5px';
         this.powerUpUI.style.display = 'none';
+        this.powerUpUI.style.maxWidth = '200px';
         this.gameUI.appendChild(this.powerUpUI);
         
         // Barra de vida
@@ -285,7 +302,23 @@ export class GameUI {
         this.settingsUI.style.display = show !== undefined ? (show ? 'block' : 'none') : (isVisible ? 'none' : 'block');
     }
 
-    updateGameUI(gameTime, score, playerHealth, powerUpInfo = null) {
+    updateFPS() {
+        this.frames++;
+        const currentTime = performance.now();
+        const deltaTime = currentTime - this.lastTime;
+
+        if (deltaTime >= 1000) {
+            this.fps = Math.round((this.frames * 1000) / deltaTime);
+            this.fpsCounter.textContent = `FPS: ${this.fps}`;
+            this.frames = 0;
+            this.lastTime = currentTime;
+        }
+    }
+
+    updateGameUI(gameTime, score, playerHealth, powerUpInfo = null, activePowerUps = []) {
+        // Atualiza o FPS
+        this.updateFPS();
+
         // Atualiza o cronômetro
         const minutes = Math.floor(gameTime / 60000);
         const seconds = Math.floor((gameTime % 60000) / 1000);
@@ -294,15 +327,38 @@ export class GameUI {
         // Atualiza a pontuação
         this.scoreUI.textContent = `Pontuação: ${score}`;
         
-        // Atualiza o powerup
-        if (powerUpInfo) {
-            const timeLeft = Math.ceil((powerUpInfo.endTime - Date.now()) / 1000);
-            this.powerUpUI.style.display = 'block';
-            this.powerUpUI.style.backgroundColor = `#${powerUpInfo.color.toString(16).padStart(6, '0')}33`;
-            this.powerUpUI.style.border = `2px solid #${powerUpInfo.color.toString(16).padStart(6, '0')}`;
+        // Limpa qualquer UI de powerup existente
+        while (this.powerUpUI.firstChild) {
+            this.powerUpUI.removeChild(this.powerUpUI.firstChild);
+        }
+        
+        // Se não há powerups ativos, oculta o container
+        if (!activePowerUps || activePowerUps.length === 0) {
+            this.powerUpUI.style.display = 'none';
+            return;
+        }
+        
+        // Exibe o container de powerups
+        this.powerUpUI.style.display = 'block';
+        this.powerUpUI.style.padding = '10px';
+        
+        // Para cada powerup ativo, cria uma entrada na UI
+        activePowerUps.forEach(powerUp => {
+            // Verifica se o powerup ainda está ativo
+            if (!powerUp.isActive) return;
+            
+            const timeLeft = Math.ceil((powerUp.endTime - Date.now()) / 1000);
+            if (timeLeft <= 0) return; // Ignora powerups expirados
+            
+            const powerUpElement = document.createElement('div');
+            powerUpElement.style.marginBottom = '5px';
+            powerUpElement.style.padding = '5px 10px';
+            powerUpElement.style.backgroundColor = `#${powerUp.color.toString(16).padStart(6, '0')}33`;
+            powerUpElement.style.border = `2px solid #${powerUp.color.toString(16).padStart(6, '0')}`;
+            powerUpElement.style.borderRadius = '5px';
             
             let powerUpText = '';
-            switch(powerUpInfo.type) {
+            switch(powerUp.type) {
                 case 'gatling':
                     powerUpText = `GATLING GUN (${timeLeft}s)`;
                     break;
@@ -319,10 +375,11 @@ export class GameUI {
                     powerUpText = `SQUAD (${timeLeft}s)`;
                     break;
             }
-            this.powerUpUI.textContent = powerUpText;
-        } else {
-            this.powerUpUI.style.display = 'none';
-        }
+            powerUpElement.textContent = powerUpText;
+            
+            // Adiciona o elemento ao container
+            this.powerUpUI.appendChild(powerUpElement);
+        });
         
         // Atualiza a barra de vida
         if (playerHealth !== undefined) {

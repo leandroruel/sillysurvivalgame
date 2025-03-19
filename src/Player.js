@@ -28,10 +28,10 @@ export class Player {
         
         // Cria o modelo do jogador (temporariamente um cubo)
         const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
-        const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.set(this.position.x, this.position.y, this.position.z);
-        this.mesh.castShadow = true;
+        this.mesh.castShadow = false;
         
         this.scene.add(this.mesh);
         
@@ -241,14 +241,28 @@ export class Player {
             ...powerUpInfo,
             startTime: Date.now(),
             endTime: Date.now() + powerUpInfo.duration,
-            timerId: null // Identificador para o temporizador de remoção
+            timerId: null, // Identificador para o temporizador de remoção
+            isActive: true // Flag para controlar se o powerup está realmente ativo
         };
         
         // Limpa qualquer temporizador ativo para este tipo de powerup
         this.clearPowerUpTimer(powerUp.type);
         
+        // Se é um powerup de arma, remove qualquer outro powerup de arma ativo
+        if (powerUp.type !== 'squad') {
+            this.activePowerUps = this.activePowerUps.filter(p => {
+                // Se for um powerup de arma diferente, remove-o
+                if (p.type !== 'squad' && p.type !== powerUp.type && p.isActive) {
+                    console.log(`Removendo powerup de arma anterior: ${p.type}`);
+                    if (p.timerId) clearTimeout(p.timerId);
+                    return false;
+                }
+                return true;
+            });
+        }
+        
         // Verifica se já existe um powerup do mesmo tipo
-        const existingPowerUpIndex = this.activePowerUps.findIndex(p => p.type === powerUp.type);
+        const existingPowerUpIndex = this.activePowerUps.findIndex(p => p.type === powerUp.type && p.isActive);
         if (existingPowerUpIndex >= 0) {
             // Atualiza o tempo de expiração do powerup existente
             this.activePowerUps[existingPowerUpIndex].endTime = powerUp.endTime;
@@ -265,14 +279,10 @@ export class Player {
             // Atualiza a cor do jogador e dos membros do squad
             const powerUpColor = this.getPowerUpColor(powerUp.type);
             this.mesh.material.color.setHex(powerUpColor);
-            this.mesh.material.emissive.setHex(powerUpColor);
-            this.mesh.material.emissiveIntensity = 0.3;
             
             // Atualiza a cor dos membros do squad também
             this.squadMembers.forEach(member => {
                 member.material.color.setHex(powerUpColor);
-                member.material.emissive.setHex(powerUpColor);
-                member.material.emissiveIntensity = 0.3;
             });
         }
         
@@ -346,7 +356,7 @@ export class Player {
     
     // Limpa o temporizador de um tipo específico de powerup
     clearPowerUpTimer(type) {
-        const existingPowerUp = this.activePowerUps.find(p => p.type === type);
+        const existingPowerUp = this.activePowerUps.find(p => p.type === type && p.isActive);
         if (existingPowerUp && existingPowerUp.timerId) {
             clearTimeout(existingPowerUp.timerId);
             existingPowerUp.timerId = null;
@@ -374,35 +384,39 @@ export class Player {
     removePowerUp(powerUp) {
         const index = this.activePowerUps.indexOf(powerUp);
         if (index > -1) {
+            // Marca o powerup como inativo em vez de removê-lo da lista
+            this.activePowerUps[index].isActive = false;
+            
             // Limpa o timer se existir
             if (this.activePowerUps[index].timerId) {
                 clearTimeout(this.activePowerUps[index].timerId);
+                this.activePowerUps[index].timerId = null;
             }
             
-            this.activePowerUps.splice(index, 1);
-            
             // Verifica se ainda há um powerup de squad ativo
-            const hasSquadPowerUp = this.activePowerUps.some(p => p.type === 'squad');
+            const hasSquadPowerUp = this.activePowerUps.some(p => p.type === 'squad' && p.isActive);
             
-            // Remove membros do squad apenas se não houver mais powerup de squad ativo
-            if (powerUp.type === 'squad' && !hasSquadPowerUp) {
+            // Remove membros do squad apenas se o powerup que expirou for o de squad
+            if (powerUp.type === 'squad') {
+                console.log('PowerUp de squad expirou - removendo membros do squad');
                 this.removeSquadMembers();
             }
             
+            // Conta quantos powerups ativos ainda existem (excluindo os inativos)
+            const activeCount = this.activePowerUps.filter(p => p.isActive).length;
+            
             // Reseta as configurações padrão se não houver outros powerups ativos
-            if (this.activePowerUps.length === 0) {
-                this.shootDelay = 50; // Reduzido de 500 para 50ms
+            if (activeCount === 0) {
+                this.shootDelay = 50;
                 this.damage = 20;
                 this.currentPowerUp = null;
                 this.mesh.material.color.setHex(0x00ff00);
-                this.mesh.material.emissive.setHex(0x000000);
-                this.mesh.material.emissiveIntensity = 0;
                 this.startShooting();
             } else {
-                // Procura outro powerup de arma para aplicar
+                // Procura outro powerup de arma ativo para aplicar
                 const weaponPowerUp = this.activePowerUps.find(p => 
-                    p.type === 'gatling' || p.type === 'ak47' || 
-                    p.type === 'bazooka' || p.type === 'grenade'
+                    p.isActive && (p.type === 'gatling' || p.type === 'ak47' || 
+                    p.type === 'bazooka' || p.type === 'grenade')
                 );
                 
                 if (weaponPowerUp) {
@@ -412,20 +426,22 @@ export class Player {
                     
                     const powerUpColor = this.getPowerUpColor(weaponPowerUp.type);
                     this.mesh.material.color.setHex(powerUpColor);
-                    this.mesh.material.emissive.setHex(powerUpColor);
                     
                     // Atualiza os membros do squad também
                     this.squadMembers.forEach(member => {
                         member.material.color.setHex(powerUpColor);
-                        member.material.emissive.setHex(powerUpColor);
                     });
                     
                     this.startShooting();
                 } else {
                     // Aplica o próximo powerup da lista (provavelmente squad)
-                    this.currentPowerUp = this.activePowerUps[this.activePowerUps.length - 1];
-                    this.mesh.material.color.setHex(this.getPowerUpColor(this.currentPowerUp.type));
-                    this.mesh.material.emissive.setHex(this.getPowerUpColor(this.currentPowerUp.type));
+                    const nextActivePowerUp = this.activePowerUps.find(p => p.isActive);
+                    if (nextActivePowerUp) {
+                        this.currentPowerUp = nextActivePowerUp;
+                        this.mesh.material.color.setHex(this.getPowerUpColor(this.currentPowerUp.type));
+                    } else {
+                        this.currentPowerUp = null;
+                    }
                     
                     // Garante que o sistema de tiro continue funcionando
                     this.startShooting();
@@ -453,10 +469,8 @@ export class Player {
             
             // Cria o modelo para o membro do squad - usando cilindros para parecer com a imagem
             const geometry = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
-            const material = new THREE.MeshPhongMaterial({
-                color: 0x0066ff, // Azul mais vibrante, similar à imagem
-                emissive: 0x0044aa,
-                emissiveIntensity: 0.5
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x0066ff // Azul mais vibrante, similar à imagem
             });
             const member = new THREE.Mesh(geometry, material);
             
@@ -466,7 +480,7 @@ export class Player {
                 this.mesh.position.y,
                 this.mesh.position.z + offsetZ
             );
-            member.castShadow = true;
+            member.castShadow = false; // Desativa sombras
             
             // Define propriedades importantes para o membro do squad
             member.isSquadMember = true; // Flag para identificação
@@ -483,8 +497,6 @@ export class Player {
             const powerUpColor = this.getPowerUpColor(this.currentPowerUp.type);
             this.squadMembers.forEach(member => {
                 member.material.color.setHex(powerUpColor);
-                member.material.emissive.setHex(powerUpColor);
-                member.material.emissiveIntensity = 0.3;
             });
         }
         
@@ -580,5 +592,10 @@ export class Player {
         if (this.onGameOver) {
             this.onGameOver('Você morreu!');
         }
+    }
+    
+    // Retorna apenas os powerups realmente ativos para exibição na UI
+    getActivePowerUps() {
+        return this.activePowerUps.filter(p => p.isActive);
     }
 } 

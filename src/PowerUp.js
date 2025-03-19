@@ -55,20 +55,18 @@ export class PowerUp {
         }
         
         // Cria o modelo do powerup
-        const geometry = new THREE.SphereGeometry(0.3, 8, 8);
-        const material = new THREE.MeshPhongMaterial({
-            color: this.color,
-            emissive: this.color,
-            emissiveIntensity: 0.5
+        const geometry = new THREE.SphereGeometry(0.3, 6, 6);
+        const material = new THREE.MeshBasicMaterial({
+            color: this.color
         });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        // Adiciona um efeito de brilho
-        const glowGeometry = new THREE.SphereGeometry(0.4, 8, 8);
+        // Simplifica o efeito de brilho
+        const glowGeometry = new THREE.SphereGeometry(0.4, 6, 6);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: this.color,
             transparent: true,
-            opacity: 0.3
+            opacity: 0.2
         });
         this.glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
         this.mesh.add(this.glowMesh);
